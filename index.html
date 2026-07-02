@@ -255,8 +255,47 @@
       display: grid;
       grid-template-columns: minmax(180px, 280px) minmax(160px, 220px) minmax(0, 1fr);
       gap: 10px;
-      padding: 14px;
+      padding: 14px 14px 10px;
+    }
+
+    .field-selector {
+      display: none;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 0 14px 14px;
       border-bottom: 1px solid var(--line);
+    }
+
+    .field-selector.visible {
+      display: flex;
+    }
+
+    .field-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 32px;
+      max-width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 10px;
+      background: #fff;
+      color: #334155;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .field-chip input {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      accent-color: var(--accent);
+    }
+
+    .field-chip span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .input,
@@ -403,11 +442,6 @@
         <h1></h1>
         <p class="subtitle"><code></code><code></code></p>
       </div>
-      <div class="actions">
-        <button class="button" id="addSource" type="button"> + </button>
-        
-        <button class="button primary" id="compareNow" type="button">对比</button>
-      </div>
     </header>
 
     <section class="workspace">
@@ -435,8 +469,12 @@
             <option value="diff">只看差异</option>
             <option value="all">显示全部字段</option>
           </select>
-          <button class="button" id="exportCsv" type="button" disabled>导出 CSV</button>
+          <div class="actions">
+            <button class="button" id="addSource" type="button"> + </button>
+            <button class="button primary" id="compareNow" type="button">对比</button>
+          </div>
         </div>
+        <div class="field-selector" id="fieldSelector" aria-label="差异字段显示开关"></div>
 
         <div class="notice" id="notice"></div>
         <div class="table-wrap" id="tableWrap">
@@ -461,6 +499,7 @@
     const state = {
       sources: [],
       lastRows: [],
+      excludedFields: new Set(),
       nextId: 1,
     };
 
@@ -490,7 +529,7 @@
       fileInput: document.querySelector("#fileInput"),
       filterInput: document.querySelector("#filterInput"),
       displayMode: document.querySelector("#displayMode"),
-      exportCsv: document.querySelector("#exportCsv"),
+      fieldSelector: document.querySelector("#fieldSelector"),
       tableWrap: document.querySelector("#tableWrap"),
       notice: document.querySelector("#notice"),
       sourceCount: document.querySelector("#sourceCount"),
@@ -608,7 +647,6 @@
       return {
         field,
         changed,
-        uniqueCount: unique.size,
         values,
         searchText: [field, ...values.map(formatValue)].join("\n").toLowerCase(),
       };
@@ -656,7 +694,6 @@
       els.cdCount.textContent = rows.length;
       els.diffCount.textContent = diffCount;
       els.sameCount.textContent = Math.max(0, rows.length - diffCount);
-      els.exportCsv.disabled = valid.length < 2 || diffCount === 0;
 
       if (valid.length === 1) {
         setNotice("需要至少两个有效 JSON 才能判断差异。");
@@ -670,6 +707,7 @@
       const valid = comparison.valid;
       state.lastRows = comparison.rows;
       updateSummary(comparison);
+      renderFieldSelector(comparison.rows.filter((row) => row.changed));
 
       if (valid.length < 2) {
         els.tableWrap.innerHTML = '<div class="empty">添加至少两个 JSON 后开始对比。</div>';
@@ -680,6 +718,7 @@
       const onlyDiff = els.displayMode.value === "diff";
       const rows = comparison.rows.filter((row) => {
         if (onlyDiff && !row.changed) return false;
+        if (row.changed && state.excludedFields.has(row.field)) return false;
         if (query && !row.searchText.includes(query)) return false;
         return true;
       });
@@ -693,7 +732,6 @@
       const thead = document.createElement("thead");
       const headerRow = document.createElement("tr");
       headerRow.appendChild(makeCell("th", "字段"));
-      headerRow.appendChild(makeCell("th", "差异数"));
       valid.forEach((item) => headerRow.appendChild(makeCell("th", item.source.nameInput.value || `JSON ${item.source.id}`)));
       thead.appendChild(headerRow);
       table.appendChild(thead);
@@ -702,7 +740,6 @@
       rows.forEach((row) => {
         const tr = document.createElement("tr");
         tr.appendChild(makeCell("td", row.field));
-        tr.appendChild(makeCell("td", row.changed ? `${row.uniqueCount} 种` : "一致"));
         row.values.forEach((value) => {
           const td = makeCell("td", "");
           td.className = row.changed ? "value-cell changed" : "value-cell";
@@ -716,6 +753,49 @@
       table.appendChild(tbody);
 
       els.tableWrap.replaceChildren(table);
+    }
+
+    function renderFieldSelector(changedRows) {
+      if (!changedRows.length) {
+        els.fieldSelector.classList.remove("visible");
+        els.fieldSelector.replaceChildren();
+        return;
+      }
+
+      const activeFields = new Set(changedRows.map((row) => row.field));
+      state.excludedFields.forEach((field) => {
+        if (!activeFields.has(field)) {
+          state.excludedFields.delete(field);
+        }
+      });
+
+      const fragment = document.createDocumentFragment();
+      changedRows.forEach((row) => {
+        const label = document.createElement("label");
+        label.className = "field-chip";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = !state.excludedFields.has(row.field);
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) {
+            state.excludedFields.delete(row.field);
+          } else {
+            state.excludedFields.add(row.field);
+          }
+          renderTable();
+        });
+
+        const text = document.createElement("span");
+        text.textContent = row.field;
+        text.title = row.field;
+
+        label.append(checkbox, text);
+        fragment.appendChild(label);
+      });
+
+      els.fieldSelector.replaceChildren(fragment);
+      els.fieldSelector.classList.add("visible");
     }
 
     function makeCell(tag, text) {
@@ -751,39 +831,12 @@
       addSource("当前 collect", JSON.stringify(variant, null, 2));
     }
 
-    function exportCsv() {
-      const comparison = getComparison();
-      const valid = comparison.valid;
-      if (valid.length < 2) return;
-      const rows = comparison.rows.filter((row) => row.changed);
-      const headers = ["field", "unique_count", ...valid.map((item) => item.source.nameInput.value || `JSON ${item.source.id}`)];
-      const csvRows = [headers, ...rows.map((row) => [
-        row.field,
-        row.uniqueCount,
-        ...row.values.map(formatValue),
-      ])];
-      const csv = csvRows.map((row) => row.map(csvEscape).join(",")).join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "collect-diff.csv";
-      link.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function csvEscape(value) {
-      const text = String(value ?? "");
-      return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-    }
-
     els.addSource.addEventListener("click", () => addSource());
     els.compareNow.addEventListener("click", compare);
-    els.loadDemo.addEventListener("click", loadDemo);
+    els.loadDemo?.addEventListener("click", loadDemo);
     els.fileInput.addEventListener("change", (event) => loadFiles(event.target.files));
     els.filterInput.addEventListener("input", renderTable);
     els.displayMode.addEventListener("change", renderTable);
-    els.exportCsv.addEventListener("click", exportCsv);
 
     addSource("JSON 1");
     addSource("JSON 2");
