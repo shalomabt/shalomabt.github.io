@@ -1,13 +1,749 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="zh-CN">
 <head>
-    <title>我的个人网站</title>
-    <style>
-        body { font-family: Arial; text-align: center; padding: 50px; }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JSON CD 对比</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230f766e'/%3E%3Cpath d='M18 20h10v6H18v12h10v6H18c-4 0-6-2-6-6V26c0-4 2-6 6-6Zm18 0h10c4 0 6 2 6 6v12c0 4-2 6-6 6H36v-6h10V26H36v-6Z' fill='white'/%3E%3Cpath d='M26 35h12v-6H26v6Z' fill='%23facc15'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --panel-soft: #eef3f7;
+      --text: #17202a;
+      --muted: #64748b;
+      --line: #d9e1ea;
+      --accent: #0f766e;
+      --accent-strong: #0b5d57;
+      --danger: #b42318;
+      --warn-bg: #fff6d6;
+      --warn-line: #f2d378;
+      --shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    .app {
+      width: min(1440px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 40px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 36px);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 8px;
+      min-height: 40px;
+      padding: 0 14px;
+      cursor: pointer;
+      box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+    }
+
+    .button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .button.primary:hover {
+      background: var(--accent-strong);
+    }
+
+    .button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .source-list {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .source-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .source-card.invalid {
+      border-color: rgba(180, 35, 24, 0.45);
+    }
+
+    .source-toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px;
+      background: var(--panel-soft);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .source-name {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      min-height: 34px;
+      padding: 0 9px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .icon-button {
+      width: 34px;
+      height: 34px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .icon-button:hover {
+      color: var(--danger);
+      border-color: rgba(180, 35, 24, 0.35);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 210px;
+      resize: vertical;
+      border: 0;
+      padding: 12px;
+      outline: none;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #1f2937;
+    }
+
+    .source-status {
+      min-height: 31px;
+      padding: 8px 12px 10px;
+      color: var(--muted);
+      font-size: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .source-card.invalid .source-status {
+      color: var(--danger);
+    }
+
+    .file-row {
+      display: grid;
+      gap: 10px;
+      padding: 0 14px 14px;
+    }
+
+    .file-input {
+      width: 100%;
+      border: 1px dashed #9fb2c6;
+      border-radius: 8px;
+      padding: 14px;
+      background: #f8fbfd;
+      color: var(--muted);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(110px, 1fr));
+      gap: 10px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfd;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--panel);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .table-tools {
+      display: grid;
+      grid-template-columns: minmax(180px, 280px) minmax(160px, 220px) minmax(0, 1fr);
+      gap: 10px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .input,
+    select {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 10px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .notice {
+      display: none;
+      margin: 14px;
+      padding: 12px;
+      border: 1px solid var(--warn-line);
+      border-radius: 8px;
+      background: var(--warn-bg);
+      color: #6f5600;
+      font-size: 13px;
+    }
+
+    .notice.visible {
+      display: block;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: calc(100vh - 275px);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      min-width: 760px;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+      padding: 10px;
+      vertical-align: top;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #eef3f7;
+      color: #334155;
+      text-align: left;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    th:first-child,
+    td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: #fff;
+      border-left: 0;
+      width: 82px;
+      white-space: nowrap;
+    }
+
+    th:first-child {
+      z-index: 3;
+      background: #eef3f7;
+    }
+
+    td.value-cell.changed {
+      background: #fff8e7;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+
+    pre {
+      margin: 0;
+      max-width: 420px;
+      max-height: 180px;
+      white-space: pre-wrap;
+      overflow: auto;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .empty {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .actions {
+        justify-content: flex-start;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .summary,
+      .table-tools {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .table-wrap {
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .app {
+        width: min(100vw - 20px, 1440px);
+        padding-top: 16px;
+      }
+
+      .summary,
+      .table-tools {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
-    <h1>你好，我是你的名字 👋</h1>
-    <p>这是我的个人主页</p>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h1>JSON CD 对比</h1>
+        <p class="subtitle">粘贴或上传多个 collect JSON，按 <code>cd[n]</code> 找出不同值。</p>
+      </div>
+      <div class="actions">
+        <button class="button" id="addSource" type="button">新增 JSON</button>
+        <button class="button" id="loadDemo" type="button">加载示例</button>
+        <button class="button primary" id="compareNow" type="button">开始对比</button>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <aside class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">输入</h2>
+        </div>
+        <div class="source-list" id="sourceList"></div>
+        <div class="file-row">
+          <input class="file-input" id="fileInput" type="file" accept=".json,application/json" multiple>
+        </div>
+      </aside>
+
+      <section class="panel">
+        <div class="summary">
+          <div class="metric"><strong id="sourceCount">0</strong><span>有效 JSON</span></div>
+          <div class="metric"><strong id="cdCount">0</strong><span>最大 cd 长度</span></div>
+          <div class="metric"><strong id="diffCount">0</strong><span>差异字段</span></div>
+          <div class="metric"><strong id="sameCount">0</strong><span>一致字段</span></div>
+        </div>
+
+        <div class="table-tools">
+          <input class="input" id="filterInput" type="search" placeholder="过滤 cd 索引或内容">
+          <select id="displayMode" aria-label="显示模式">
+            <option value="diff">只看差异</option>
+            <option value="all">显示全部 cd</option>
+          </select>
+          <button class="button" id="exportCsv" type="button" disabled>导出 CSV</button>
+        </div>
+
+        <div class="notice" id="notice"></div>
+        <div class="table-wrap" id="tableWrap">
+          <div class="empty">添加至少两个 JSON 后开始对比。</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <template id="sourceTemplate">
+    <article class="source-card">
+      <div class="source-toolbar">
+        <input class="source-name" type="text" aria-label="JSON 名称">
+        <button class="icon-button" type="button" title="删除">×</button>
+      </div>
+      <textarea spellcheck="false" placeholder='{"cd":[...],"sd":{...}}'></textarea>
+      <div class="source-status">等待输入</div>
+    </article>
+  </template>
+
+  <script>
+    const state = {
+      sources: [],
+      lastRows: [],
+      nextId: 1,
+    };
+
+    const demoCollect = {
+      cd: [
+        0,
+        0,
+        1782189152,
+        { count: 1, items: [{ type: "script", dur: 12, sz: 0 }] },
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X)",
+        { MAX_TEXTURE_SIZE: 16384, MAX_VIEWPORT_DIMS: [16384, 16384] },
+        "Arial,Courier New,Georgia,Impact",
+        { _state: 0, quota: 1030792152, usage: null },
+        "440-956-956-24-*-*-|-*",
+        731,
+        "complete"
+      ],
+      sd: { od: "C", isNewEntry: 1 }
+    };
+
+    const els = {
+      sourceList: document.querySelector("#sourceList"),
+      sourceTemplate: document.querySelector("#sourceTemplate"),
+      addSource: document.querySelector("#addSource"),
+      compareNow: document.querySelector("#compareNow"),
+      loadDemo: document.querySelector("#loadDemo"),
+      fileInput: document.querySelector("#fileInput"),
+      filterInput: document.querySelector("#filterInput"),
+      displayMode: document.querySelector("#displayMode"),
+      exportCsv: document.querySelector("#exportCsv"),
+      tableWrap: document.querySelector("#tableWrap"),
+      notice: document.querySelector("#notice"),
+      sourceCount: document.querySelector("#sourceCount"),
+      cdCount: document.querySelector("#cdCount"),
+      diffCount: document.querySelector("#diffCount"),
+      sameCount: document.querySelector("#sameCount"),
+    };
+
+    function stableStringify(value) {
+      if (value === null || typeof value !== "object") {
+        return JSON.stringify(value);
+      }
+      if (Array.isArray(value)) {
+        return "[" + value.map(stableStringify).join(",") + "]";
+      }
+      const keys = Object.keys(value).sort();
+      return "{" + keys.map((key) => JSON.stringify(key) + ":" + stableStringify(value[key])).join(",") + "}";
+    }
+
+    function formatValue(value) {
+      if (value === undefined) {
+        return "<缺失>";
+      }
+      if (typeof value === "string") {
+        return value;
+      }
+      return JSON.stringify(value, null, 2);
+    }
+
+    function parseSource(source) {
+      const raw = source.textarea.value.trim();
+      if (!raw) {
+        return { ok: false, message: "等待输入" };
+      }
+      try {
+        const data = JSON.parse(raw);
+        if (!data || !Array.isArray(data.cd)) {
+          return { ok: false, message: "JSON 中没有 cd 数组" };
+        }
+        return { ok: true, data, cd: data.cd, message: `已解析，cd 长度 ${data.cd.length}` };
+      } catch (error) {
+        return { ok: false, message: `解析失败：${error.message}` };
+      }
+    }
+
+    function addSource(name = `JSON ${state.nextId}`, value = "") {
+      const fragment = els.sourceTemplate.content.cloneNode(true);
+      const card = fragment.querySelector(".source-card");
+      const nameInput = fragment.querySelector(".source-name");
+      const textarea = fragment.querySelector("textarea");
+      const removeButton = fragment.querySelector(".icon-button");
+      const status = fragment.querySelector(".source-status");
+      const source = {
+        id: state.nextId++,
+        card,
+        nameInput,
+        textarea,
+        status,
+      };
+
+      nameInput.value = name;
+      textarea.value = value;
+      textarea.addEventListener("input", debounce(compare, 180));
+      nameInput.addEventListener("input", debounce(renderTable, 120));
+      removeButton.addEventListener("click", () => {
+        state.sources = state.sources.filter((item) => item !== source);
+        card.remove();
+        compare();
+      });
+
+      state.sources.push(source);
+      els.sourceList.appendChild(fragment);
+      compare();
+    }
+
+    function debounce(fn, wait) {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), wait);
+      };
+    }
+
+    function getComparison() {
+      const parsed = state.sources.map((source) => {
+        const result = parseSource(source);
+        source.card.classList.toggle("invalid", !result.ok && source.textarea.value.trim() !== "");
+        source.status.textContent = result.message;
+        return { source, ...result };
+      });
+      const valid = parsed.filter((item) => item.ok);
+      const maxLength = valid.reduce((max, item) => Math.max(max, item.cd.length), 0);
+      const rows = [];
+
+      for (let index = 0; index < maxLength; index += 1) {
+        const values = valid.map((item) => item.cd[index]);
+        const normalized = values.map((value) => value === undefined ? "__MISSING__" : stableStringify(value));
+        const unique = new Set(normalized);
+        const changed = unique.size > 1;
+        rows.push({
+          index,
+          changed,
+          uniqueCount: unique.size,
+          values,
+          searchText: [`cd${index}`, `cd[${index}]`, ...values.map(formatValue)].join("\n").toLowerCase(),
+        });
+      }
+
+      return { parsed, valid, rows, maxLength };
+    }
+
+    function compare() {
+      const comparison = getComparison();
+      state.lastRows = comparison.rows;
+      updateSummary(comparison);
+      renderTable();
+    }
+
+    function updateSummary({ valid, rows, maxLength }) {
+      const diffCount = rows.filter((row) => row.changed).length;
+      els.sourceCount.textContent = valid.length;
+      els.cdCount.textContent = maxLength;
+      els.diffCount.textContent = diffCount;
+      els.sameCount.textContent = Math.max(0, rows.length - diffCount);
+      els.exportCsv.disabled = valid.length < 2 || diffCount === 0;
+
+      if (valid.length === 1) {
+        setNotice("需要至少两个有效 JSON 才能判断差异。");
+      } else {
+        setNotice("");
+      }
+    }
+
+    function renderTable() {
+      const comparison = getComparison();
+      const valid = comparison.valid;
+      state.lastRows = comparison.rows;
+      updateSummary(comparison);
+
+      if (valid.length < 2) {
+        els.tableWrap.innerHTML = '<div class="empty">添加至少两个 JSON 后开始对比。</div>';
+        return;
+      }
+
+      const query = els.filterInput.value.trim().toLowerCase();
+      const onlyDiff = els.displayMode.value === "diff";
+      const rows = comparison.rows.filter((row) => {
+        if (onlyDiff && !row.changed) return false;
+        if (query && !row.searchText.includes(query)) return false;
+        return true;
+      });
+
+      if (!rows.length) {
+        els.tableWrap.innerHTML = '<div class="empty">没有匹配的 cd 差异。</div>';
+        return;
+      }
+
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      headerRow.appendChild(makeCell("th", "字段"));
+      headerRow.appendChild(makeCell("th", "差异数"));
+      valid.forEach((item) => headerRow.appendChild(makeCell("th", item.source.nameInput.value || `JSON ${item.source.id}`)));
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        tr.appendChild(makeCell("td", `cd[${row.index}]`));
+        tr.appendChild(makeCell("td", row.changed ? `${row.uniqueCount} 种` : "一致"));
+        row.values.forEach((value) => {
+          const td = makeCell("td", "");
+          td.className = row.changed ? "value-cell changed" : "value-cell";
+          const pre = document.createElement("pre");
+          pre.textContent = formatValue(value);
+          td.appendChild(pre);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+
+      els.tableWrap.replaceChildren(table);
+    }
+
+    function makeCell(tag, text) {
+      const cell = document.createElement(tag);
+      cell.textContent = text;
+      return cell;
+    }
+
+    function setNotice(message) {
+      els.notice.textContent = message;
+      els.notice.classList.toggle("visible", Boolean(message));
+    }
+
+    async function loadFiles(files) {
+      for (const file of files) {
+        const text = await file.text();
+        addSource(file.name, text);
+      }
+      els.fileInput.value = "";
+    }
+
+    function loadDemo() {
+      const variant = structuredClone(demoCollect);
+      variant.cd[2] = 1782189176;
+      variant.cd[3].items[0].dur = 58;
+      variant.cd[8] = "440-856-856-24-*-*-|-*";
+      variant.cd.push("Apple GPU");
+      state.sources.forEach((source) => source.card.remove());
+      state.sources = [];
+      addSource("目标 collect", JSON.stringify(demoCollect, null, 2));
+      addSource("当前 collect", JSON.stringify(variant, null, 2));
+    }
+
+    function exportCsv() {
+      const comparison = getComparison();
+      const valid = comparison.valid;
+      if (valid.length < 2) return;
+      const rows = comparison.rows.filter((row) => row.changed);
+      const headers = ["field", "unique_count", ...valid.map((item) => item.source.nameInput.value || `JSON ${item.source.id}`)];
+      const csvRows = [headers, ...rows.map((row) => [
+        `cd[${row.index}]`,
+        row.uniqueCount,
+        ...row.values.map(formatValue),
+      ])];
+      const csv = csvRows.map((row) => row.map(csvEscape).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "cd-diff.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function csvEscape(value) {
+      const text = String(value ?? "");
+      return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+    }
+
+    els.addSource.addEventListener("click", () => addSource());
+    els.compareNow.addEventListener("click", compare);
+    els.loadDemo.addEventListener("click", loadDemo);
+    els.fileInput.addEventListener("change", (event) => loadFiles(event.target.files));
+    els.filterInput.addEventListener("input", renderTable);
+    els.displayMode.addEventListener("change", renderTable);
+    els.exportCsv.addEventListener("click", exportCsv);
+
+    addSource("JSON 1");
+    addSource("JSON 2");
+  </script>
 </body>
 </html>
