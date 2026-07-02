@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>JSON CD 对比</title>
+  <title></title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230f766e'/%3E%3Cpath d='M18 20h10v6H18v12h10v6H18c-4 0-6-2-6-6V26c0-4 2-6 6-6Zm18 0h10c4 0 6 2 6 6v12c0 4-2 6-6 6H36v-6h10V26H36v-6Z' fill='white'/%3E%3Cpath d='M26 35h12v-6H26v6Z' fill='%23facc15'/%3E%3C/svg%3E">
   <style>
     :root {
@@ -400,13 +400,13 @@
   <main class="app">
     <header class="topbar">
       <div>
-        <h1>JSON CD 对比</h1>
-        <p class="subtitle">粘贴或上传多个 collect JSON，按 <code>cd[n]</code> 找出不同值。</p>
+        <h1></h1>
+        <p class="subtitle"><code></code><code></code></p>
       </div>
       <div class="actions">
-        <button class="button" id="addSource" type="button">新增 JSON</button>
-        <button class="button" id="loadDemo" type="button">加载示例</button>
-        <button class="button primary" id="compareNow" type="button">开始对比</button>
+        <button class="button" id="addSource" type="button"> + </button>
+        
+        <button class="button primary" id="compareNow" type="button">对比</button>
       </div>
     </header>
 
@@ -424,16 +424,16 @@
       <section class="panel">
         <div class="summary">
           <div class="metric"><strong id="sourceCount">0</strong><span>有效 JSON</span></div>
-          <div class="metric"><strong id="cdCount">0</strong><span>最大 cd 长度</span></div>
+          <div class="metric"><strong id="cdCount">0</strong><span>字段总数</span></div>
           <div class="metric"><strong id="diffCount">0</strong><span>差异字段</span></div>
           <div class="metric"><strong id="sameCount">0</strong><span>一致字段</span></div>
         </div>
 
         <div class="table-tools">
-          <input class="input" id="filterInput" type="search" placeholder="过滤 cd 索引或内容">
+          <input class="input" id="filterInput" type="search" placeholder="过滤字段或内容">
           <select id="displayMode" aria-label="显示模式">
             <option value="diff">只看差异</option>
-            <option value="all">显示全部 cd</option>
+            <option value="all">显示全部字段</option>
           </select>
           <button class="button" id="exportCsv" type="button" disabled>导出 CSV</button>
         </div>
@@ -527,10 +527,12 @@
       }
       try {
         const data = JSON.parse(raw);
-        if (!data || !Array.isArray(data.cd)) {
-          return { ok: false, message: "JSON 中没有 cd 数组" };
+        if (!data || (!Array.isArray(data.cd) && (!data.sd || typeof data.sd !== "object"))) {
+          return { ok: false, message: "JSON 中没有 cd 数组或 sd 对象" };
         }
-        return { ok: true, data, cd: data.cd, message: `已解析，cd 长度 ${data.cd.length}` };
+        const cdLength = Array.isArray(data.cd) ? data.cd.length : 0;
+        const sdCount = flattenSd(data.sd).size;
+        return { ok: true, data, cd: data.cd || [], sd: data.sd || {}, message: `已解析，cd ${cdLength} 项，sd ${sdCount} 项` };
       } catch (error) {
         return { ok: false, message: `解析失败：${error.message}` };
       }
@@ -587,19 +589,58 @@
 
       for (let index = 0; index < maxLength; index += 1) {
         const values = valid.map((item) => item.cd[index]);
-        const normalized = values.map((value) => value === undefined ? "__MISSING__" : stableStringify(value));
-        const unique = new Set(normalized);
-        const changed = unique.size > 1;
-        rows.push({
-          index,
-          changed,
-          uniqueCount: unique.size,
-          values,
-          searchText: [`cd${index}`, `cd[${index}]`, ...values.map(formatValue)].join("\n").toLowerCase(),
-        });
+        rows.push(makeRow(`cd[${index}]`, values));
       }
 
+      const sdMaps = valid.map((item) => flattenSd(item.sd));
+      const sdPaths = [...new Set(sdMaps.flatMap((map) => [...map.keys()]))].sort(compareFieldPath);
+      sdPaths.forEach((path) => {
+        rows.push(makeRow(path, sdMaps.map((map) => map.get(path))));
+      });
+
       return { parsed, valid, rows, maxLength };
+    }
+
+    function makeRow(field, values) {
+      const normalized = values.map((value) => value === undefined ? "__MISSING__" : stableStringify(value));
+      const unique = new Set(normalized);
+      const changed = unique.size > 1;
+      return {
+        field,
+        changed,
+        uniqueCount: unique.size,
+        values,
+        searchText: [field, ...values.map(formatValue)].join("\n").toLowerCase(),
+      };
+    }
+
+    function flattenSd(value, prefix = "sd", output = new Map()) {
+      if (value === undefined) {
+        return output;
+      }
+      if (value === null || typeof value !== "object") {
+        output.set(prefix, value);
+        return output;
+      }
+      if (Array.isArray(value)) {
+        if (value.length === 0) {
+          output.set(prefix, value);
+          return output;
+        }
+        value.forEach((item, index) => flattenSd(item, `${prefix}[${index}]`, output));
+        return output;
+      }
+      const keys = Object.keys(value);
+      if (keys.length === 0) {
+        output.set(prefix, value);
+        return output;
+      }
+      keys.forEach((key) => flattenSd(value[key], `${prefix}.${key}`, output));
+      return output;
+    }
+
+    function compareFieldPath(a, b) {
+      return a.localeCompare(b, "zh-CN", { numeric: true });
     }
 
     function compare() {
@@ -612,7 +653,7 @@
     function updateSummary({ valid, rows, maxLength }) {
       const diffCount = rows.filter((row) => row.changed).length;
       els.sourceCount.textContent = valid.length;
-      els.cdCount.textContent = maxLength;
+      els.cdCount.textContent = rows.length;
       els.diffCount.textContent = diffCount;
       els.sameCount.textContent = Math.max(0, rows.length - diffCount);
       els.exportCsv.disabled = valid.length < 2 || diffCount === 0;
@@ -644,7 +685,7 @@
       });
 
       if (!rows.length) {
-        els.tableWrap.innerHTML = '<div class="empty">没有匹配的 cd 差异。</div>';
+        els.tableWrap.innerHTML = '<div class="empty">没有匹配的字段差异。</div>';
         return;
       }
 
@@ -660,7 +701,7 @@
       const tbody = document.createElement("tbody");
       rows.forEach((row) => {
         const tr = document.createElement("tr");
-        tr.appendChild(makeCell("td", `cd[${row.index}]`));
+        tr.appendChild(makeCell("td", row.field));
         tr.appendChild(makeCell("td", row.changed ? `${row.uniqueCount} 种` : "一致"));
         row.values.forEach((value) => {
           const td = makeCell("td", "");
@@ -702,6 +743,8 @@
       variant.cd[3].items[0].dur = 58;
       variant.cd[8] = "440-856-856-24-*-*-|-*";
       variant.cd.push("Apple GPU");
+      variant.sd.isNewEntry = 0;
+      variant.sd.tdc_perf = { fi: 90, pi: 60, gd: 240 };
       state.sources.forEach((source) => source.card.remove());
       state.sources = [];
       addSource("目标 collect", JSON.stringify(demoCollect, null, 2));
@@ -715,7 +758,7 @@
       const rows = comparison.rows.filter((row) => row.changed);
       const headers = ["field", "unique_count", ...valid.map((item) => item.source.nameInput.value || `JSON ${item.source.id}`)];
       const csvRows = [headers, ...rows.map((row) => [
-        `cd[${row.index}]`,
+        row.field,
         row.uniqueCount,
         ...row.values.map(formatValue),
       ])];
@@ -724,7 +767,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "cd-diff.csv";
+      link.download = "collect-diff.csv";
       link.click();
       URL.revokeObjectURL(url);
     }
