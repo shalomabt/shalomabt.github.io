@@ -43,7 +43,7 @@
     .app {
       width: calc(100vw - 32px);
       margin: 0 auto;
-      padding: 28px 0 40px;
+      padding: 0px 0 0px;
     }
 
     .topbar {
@@ -331,10 +331,11 @@
     }
 
     table {
-      width: max(100%, calc(180px + var(--json-count, 2) * 360px));
+      table-layout: fixed;
+      width: max(100%, calc(var(--field-col-width, 150px) + var(--json-count, 2) * var(--value-col-width, 240px)));
       border-collapse: separate;
       border-spacing: 0;
-      min-width: max(760px, calc(180px + var(--json-count, 2) * 360px));
+      min-width: max(620px, calc(var(--field-col-width, 150px) + var(--json-count, 2) * var(--value-col-width, 240px)));
       font-size: 13px;
     }
 
@@ -343,6 +344,7 @@
       border-bottom: 1px solid var(--line);
       border-right: 1px solid var(--line);
       padding: 10px;
+      overflow: hidden;
       vertical-align: top;
     }
 
@@ -354,7 +356,40 @@
       color: #334155;
       text-align: left;
       font-size: 12px;
+      text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    th.resizable {
+      padding-right: 18px;
+    }
+
+    .resize-handle {
+      position: absolute;
+      top: 0;
+      right: -4px;
+      z-index: 4;
+      width: 8px;
+      height: 100%;
+      cursor: col-resize;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .resize-handle::after {
+      content: "";
+      position: absolute;
+      top: 9px;
+      right: 3px;
+      width: 1px;
+      height: calc(100% - 18px);
+      background: #9fb2c6;
+      opacity: 0;
+    }
+
+    th.resizable:hover .resize-handle::after,
+    body.resizing-columns .resize-handle::after {
+      opacity: 1;
     }
 
     th:first-child,
@@ -364,8 +399,7 @@
       z-index: 1;
       background: #fff;
       border-left: 0;
-      width: 180px;
-      min-width: 180px;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
@@ -384,8 +418,8 @@
     }
 
     pre {
+      width: 100%;
       margin: 0;
-      min-width: 260px;
       max-width: none;
       max-height: 180px;
       white-space: pre-wrap;
@@ -503,8 +537,13 @@
       sources: [],
       lastRows: [],
       excludedFields: new Set(),
+      columnWidths: [],
       nextId: 1,
     };
+
+    const DEFAULT_FIELD_COLUMN_WIDTH = 150;
+    const DEFAULT_VALUE_COLUMN_WIDTH = 240;
+    const MIN_COLUMN_WIDTH = 10;
 
     const demoCollect = {
       cd: [
@@ -733,10 +772,13 @@
 
       const table = document.createElement("table");
       table.style.setProperty("--json-count", valid.length);
+      applyColumnWidths(table, valid.length + 1);
       const thead = document.createElement("thead");
       const headerRow = document.createElement("tr");
-      headerRow.appendChild(makeCell("th", "字段"));
-      valid.forEach((item) => headerRow.appendChild(makeCell("th", item.source.nameInput.value || `JSON ${item.source.id}`)));
+      headerRow.appendChild(makeHeaderCell("字段", 0));
+      valid.forEach((item, index) => {
+        headerRow.appendChild(makeHeaderCell(item.source.nameInput.value || `JSON ${item.source.id}`, index + 1));
+      });
       thead.appendChild(headerRow);
       table.appendChild(thead);
 
@@ -757,6 +799,76 @@
       table.appendChild(tbody);
 
       els.tableWrap.replaceChildren(table);
+    }
+
+    function getColumnWidth(index) {
+      return state.columnWidths[index] || (index === 0 ? DEFAULT_FIELD_COLUMN_WIDTH : DEFAULT_VALUE_COLUMN_WIDTH);
+    }
+
+    function applyColumnWidths(table, columnCount) {
+      const colgroup = document.createElement("colgroup");
+      let tableWidth = 0;
+
+      for (let index = 0; index < columnCount; index += 1) {
+        const width = getColumnWidth(index);
+        const col = document.createElement("col");
+        col.style.width = `${width}px`;
+        colgroup.appendChild(col);
+        tableWidth += width;
+      }
+
+      table.style.width = `max(100%, ${tableWidth}px)`;
+      table.style.minWidth = `${tableWidth}px`;
+      table.appendChild(colgroup);
+    }
+
+    function makeHeaderCell(text, columnIndex) {
+      const cell = makeCell("th", text);
+      cell.classList.add("resizable");
+
+      const handle = document.createElement("span");
+      handle.className = "resize-handle";
+      handle.addEventListener("pointerdown", (event) => startColumnResize(event, columnIndex));
+      cell.appendChild(handle);
+      return cell;
+    }
+
+    function startColumnResize(event, columnIndex) {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = getColumnWidth(columnIndex);
+      document.body.classList.add("resizing-columns");
+
+      const onMove = (moveEvent) => {
+        const nextWidth = Math.max(MIN_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX);
+        state.columnWidths[columnIndex] = nextWidth;
+        updateRenderedColumnWidths();
+      };
+
+      const onUp = () => {
+        document.body.classList.remove("resizing-columns");
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp, { once: true });
+    }
+
+    function updateRenderedColumnWidths() {
+      const table = els.tableWrap.querySelector("table");
+      if (!table) {
+        return;
+      }
+      const cols = [...table.querySelectorAll("col")];
+      let tableWidth = 0;
+      cols.forEach((col, index) => {
+        const width = getColumnWidth(index);
+        col.style.width = `${width}px`;
+        tableWidth += width;
+      });
+      table.style.width = `max(100%, ${tableWidth}px)`;
+      table.style.minWidth = `${tableWidth}px`;
     }
 
     function renderFieldSelector(changedRows) {
